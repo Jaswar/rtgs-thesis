@@ -19,7 +19,7 @@ from copy import deepcopy
 class Camera:
     def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
                  image_name, uid,
-                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda", timestamp = 0.0,
+                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda", timestamp = 0.0, mask=None,
                  cx=-1, cy=-1, fl_x=-1, fl_y=-1, depth=None, resolution=None, image_path=None, meta_only=False,
                  ):
 
@@ -55,6 +55,7 @@ class Camera:
                 self.image *= gt_alpha_mask.to(self.image.device)
             else:
                 self.image *= torch.ones((1, self.image_height, self.image_width), device=self.image.device)
+        self.mask = torch.tensor(mask).to(self.data_device) if mask is not None else None
 
         self.zfar = 100.0
         self.znear = 0.01

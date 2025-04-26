@@ -111,8 +111,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 alpha = render_pkg["alpha"]
 
                 # Loss
-                Ll1 = l1_loss(image, gt_image)
-                Lssim = 1.0 - ssim(image, gt_image)
+                mask = viewpoint_cam.mask
+                Ll1 = l1_loss(image * mask, gt_image * mask)
+                Lssim = 1.0 - ssim(image * mask, gt_image * mask)
                 loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * Lssim
                 
                 ###### opa mask Loss ######
@@ -186,7 +187,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                         "Lssim": Lssim}
 
             with torch.no_grad():
-                psnr_for_log = psnr(image, gt_image).mean().double()
+                psnr_for_log = psnr(image, gt_image, mask).mean().double()
                 # Progress bar
                 ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
                 ema_l1loss_for_log = 0.4 * Ll1.item() + 0.6 * ema_l1loss_for_log
@@ -312,6 +313,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                     gt_image, viewpoint = batch_data
                     gt_image = gt_image.cuda()
                     viewpoint = viewpoint.cuda()
+                    mask = viewpoint.mask
                     
                     render_pkg = renderFunc(viewpoint, scene.gaussians, *renderArgs)
                     image = torch.clamp(render_pkg["render"], 0.0, 1.0)
@@ -323,9 +325,9 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                         grid = make_grid(grid, nrow=2)
                         tb_writer.add_images(config['name'] + "_view_{}/gt_vs_render".format(viewpoint.image_name), grid[None], global_step=iteration)
                             
-                    l1_test += l1_loss(image, gt_image).mean().double()
-                    psnr_test += psnr(image, gt_image).mean().double()
-                    ssim_test += ssim(image, gt_image).mean().double()
+                    l1_test += l1_loss(image * mask, gt_image * mask).mean().double()
+                    psnr_test += psnr(image, gt_image, mask).mean().double()
+                    ssim_test += ssim(image * mask, gt_image * mask).mean().double()
                     msssim_test += msssim(image[None].cpu(), gt_image[None].cpu())
                 psnr_test /= len(config['cameras'])
                 l1_test /= len(config['cameras']) 

@@ -27,6 +27,8 @@ import torch
 from utils.general_utils import fps
 from multiprocessing.pool import ThreadPool
 import imagesize
+import cv2 as cv
+
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -40,6 +42,7 @@ class CameraInfo(NamedTuple):
     image_name: str
     width: int
     height: int
+    mask: np.array = None
     timestamp: float = 0.0
     fl_x: float = -1.0
     fl_y: float = -1.0
@@ -390,7 +393,174 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png", num_pt
                            ply_path=ply_path)
     return scene_info
 
+# def readEgoExoCameras(path, intrinsics_path, extrinsics_path, images_path, masks_path):
+#     with open(intrinsics_path, 'r') as f:
+#         intrinsics = f.read().split('\n')
+#     intrinsics = [line for line in intrinsics if line != ''][1:]
+#     intrinsics = [list(map(float, line.split(' '))) for line in intrinsics]
+
+#     with open(extrinsics_path, 'r') as f:
+#         extrinsics = f.read().split('\n')
+#     extrinsics = [line for line in extrinsics if line != ''][1:]
+#     extrinsics = [list(map(float, line.split(' '))) for line in extrinsics]
+
+#     images = [Image.open(os.path.join(images_path, img)) for img in sorted(os.listdir(images_path))]
+#     masks = [cv.imread(os.path.join(masks_path, img)) for img in sorted(os.listdir(masks_path))]
+#     masks = [(mask[:, :, 0] > 0).astype(np.float32) for mask in masks]
+#     assert len(extrinsics) == len(images) == len(masks) == len(intrinsics), f'{len(extrinsics)=} != {len(images)=} != {len(masks)=} != {len(intrinsics)=}'
+
+#     cam_infos = []
+#     width, height = images[0].size
+#     for i, (intrs, extrs, img, mask) in enumerate(zip(intrinsics, extrinsics, images, masks)):
+#         # extrs: QW, QX, QY, QZ, X, Y, Z
+#         qvec = extrs[:4]
+#         tvec = extrs[4:]
+#         fx, fy = intrs[:2]
+
+#         R = qvec2rotmat(qvec)
+#         T = np.array(tvec)
+#         c2w = np.zeros((4, 4))
+#         c2w[:3, :3] = R
+#         c2w[:3, 3] = T
+#         c2w[3, 3] = 1
+#         w2c = np.linalg.inv(c2w)
+#         R = np.transpose(w2c[:3,:3])
+#         T = w2c[:3, 3]
+#         fovx = focal2fov(fx, width)
+#         fovy = focal2fov(fy, height)
+
+#         img_name = f'{i:05d}'
+#         img_path = os.path.join(images_path, f'{img_name}.png')
+#         fid = i / (len(images) - 1)
+#         cam_info = CameraInfo(uid=i, R=R, T=T, FovY=fovy, FovX=fovx, image=img,
+#                               image_path=img_path, image_name=img_name, width=width, height=height, timestamp=fid, mask=mask, depth=None)
+#         cam_infos.append(cam_info)
+#     return cam_infos
+        
+
+# def readEgoExoSceneInfo(path, eval, llffhold=2):
+#     intrinsics_path = os.path.join(path, 'intrinsics.txt')
+#     extrinsics_path = os.path.join(path, 'trajectory.txt')
+#     frames_path = os.path.join(path, 'frames')
+#     masks_path = os.path.join(path, 'masks')
+#     cam_infos = readEgoExoCameras(path, intrinsics_path, extrinsics_path, frames_path, masks_path)
+
+#     if eval:
+#         train_cam_infos = [c for idx, c in enumerate(
+#             cam_infos) if (idx + 1) % llffhold != 0]
+#         test_cam_infos = [c for idx, c in enumerate(
+#             cam_infos) if (idx + 1) % llffhold == 0]
+#     else:
+#         train_cam_infos = cam_infos
+#         test_cam_infos = []
+
+#     nerf_normalization = getNerfppNorm(train_cam_infos)
+
+#     ply_path = os.path.join(path, 'points.ply')
+#     pcd = fetchPly(ply_path)
+
+#     # plot = pv.Plotter()
+#     # plot.add_points(pcd.points, color='red')
+#     # plot_trajectory(plot, cam_infos)
+#     # plot.show()
+
+#     scene_info = SceneInfo(point_cloud=pcd,
+#                            train_cameras=train_cam_infos,
+#                            test_cameras=test_cam_infos,
+#                            nerf_normalization=nerf_normalization,
+#                            ply_path=ply_path)
+#     return scene_info
+
+def readEgoExoCameras(path):
+    with open(os.path.join(path, 'ordering.txt'), 'r') as f:
+        ordering = f.read().split('\n')
+    ordering = [line for line in ordering if line != '']
+    cam_names = list(set(ordering))
+
+    all_intrinsics = {}
+    all_extrinsics = {}
+    for i, cam_name in enumerate(cam_names):
+        with open(os.path.join(path, cam_name, 'intrinsics.txt'), 'r') as f:
+            intrinsics = f.read().split('\n')
+        intrinsics = [line for line in intrinsics if line != ''][1:]
+        intrinsics = [list(map(float, line.split(' '))) for line in intrinsics]
+        all_intrinsics[cam_name] = intrinsics
+
+        with open(os.path.join(path, cam_name, 'trajectory.txt'), 'r') as f:
+            extrinsics = f.read().split('\n')
+        extrinsics = [line for line in extrinsics if line != ''][1:]
+        extrinsics = [list(map(float, line.split(' '))) for line in extrinsics]
+        all_extrinsics[cam_name] = extrinsics
+    reference_frame = cv.imread(os.path.join(path, ordering[0], 'frames', '00000.png'))
+    height, width = reference_frame.shape[:2]
+
+    cam_infos = []
+    for i, order in enumerate(ordering):
+        qvec = all_extrinsics[order][i][:4]
+        tvec = all_extrinsics[order][i][4:]
+        fx = all_intrinsics[order][i][0]
+        fy = all_intrinsics[order][i][1]
+        R = qvec2rotmat(qvec)
+        T = np.array(tvec)
+        c2w = np.zeros((4, 4))
+        c2w[:3, :3] = R
+        c2w[:3, 3] = T
+        c2w[3, 3] = 1
+        w2c = np.linalg.inv(c2w)
+        R = np.transpose(w2c[:3,:3])
+        T = w2c[:3, 3]
+        fovx = focal2fov(fx, width)
+        fovy = focal2fov(fy, height)
+
+        img_name = f'{i:05d}'
+        img_path = os.path.join(path, order, 'frames', f'{img_name}.png')
+        img = Image.open(img_path)
+        fid = i / (len(ordering) - 1)
+        mask = cv.imread(os.path.join(path, order, 'masks', f'{img_name}.png'))[:, :, 0] > 0
+        mask = mask.astype(np.float32)
+        cam_info = CameraInfo(uid=i, R=R, T=T, FovY=fovy, FovX=fovx, image=img,
+                              image_path=img_path, image_name=img_name, width=width, height=height, timestamp=fid, mask=mask, depth=None)
+        cam_infos.append(cam_info)
+    return cam_infos
+
+
+def readEgoExoSceneInfo(path, eval):
+    cam_infos = readEgoExoCameras(path)
+
+    if not eval:
+        print('Run mode: Validation')
+        # validation
+        train_cam_infos = [c for idx, c in enumerate(
+            cam_infos) if idx % 2 == 0]
+        test_cam_infos = [c for idx, c in enumerate(
+            cam_infos) if idx % 4 == 1]
+    else:
+        print('Run mode: Test')
+        # test
+        train_cam_infos = [c for idx, c in enumerate(
+            cam_infos) if idx % 2 == 0]
+        test_cam_infos = [c for idx, c in enumerate(
+            cam_infos) if idx % 4 == 3]
+
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+
+    ply_path = os.path.join(path, 'points.ply')
+    pcd = fetchPly(ply_path)
+
+    # plot = pv.Plotter()
+    # plot.add_points(pcd.points, color='red')
+    # plot_trajectory(plot, cam_infos)
+    # plot.show()
+
+    scene_info = SceneInfo(point_cloud=pcd,
+                           train_cameras=train_cam_infos,
+                           test_cameras=test_cam_infos,
+                           nerf_normalization=nerf_normalization,
+                           ply_path=ply_path)
+    return scene_info
+
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
-    "Blender" : readNerfSyntheticInfo
+    "Blender" : readNerfSyntheticInfo,
+    'EgoExo': readEgoExoSceneInfo
 }
