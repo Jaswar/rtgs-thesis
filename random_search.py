@@ -95,7 +95,7 @@ def write_config(config, path, source_path, model_path):
 
 
 def execute_in_env(command, env):
-    return os.system(f'/bin/bash -c \"source ~/anaconda3/etc/profile.d/conda.sh && conda activate {env} && {command} \"')
+    return os.system(f'/bin/bash -c \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate {env} && {command} \"')
 
 
 def run_experiment(config_path):
