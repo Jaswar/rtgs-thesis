@@ -15,17 +15,25 @@ import torch
 # from . import _C
 import os
 from torch.utils.cpp_extension import load
+import importlib.util
 parent_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "diff-gaussian-rasterization")
-_C = load(
-    name='diff_gaussian_rasterization',
-    extra_cuda_cflags=["-I " + os.path.join(parent_dir, "third_party/glm/"), "-g"],
-    sources=[
-        os.path.join(parent_dir, "cuda_rasterizer/rasterizer_impl.cu"),
-        os.path.join(parent_dir, "cuda_rasterizer/forward.cu"),
-        os.path.join(parent_dir, "cuda_rasterizer/backward.cu"),
-        os.path.join(parent_dir, "rasterize_points.cu"),
-        os.path.join(parent_dir, "ext.cpp")],
-    verbose=True)
+so_path = os.path.join(parent_dir, 'build/diff_gaussian_rasterization.so')
+if not os.path.exists(so_path):
+    _C = load(
+        name='diff_gaussian_rasterization',
+        extra_cuda_cflags=["-I " + os.path.join(parent_dir, "third_party/glm/"), "-g"],
+        sources=[
+            os.path.join(parent_dir, "cuda_rasterizer/rasterizer_impl.cu"),
+            os.path.join(parent_dir, "cuda_rasterizer/forward.cu"),
+            os.path.join(parent_dir, "cuda_rasterizer/backward.cu"),
+            os.path.join(parent_dir, "rasterize_points.cu"),
+            os.path.join(parent_dir, "ext.cpp")],
+        verbose=True,
+        build_directory=os.path.join(parent_dir, 'build'))
+else:
+    spec = importlib.util.spec_from_file_location("diff_gaussian_rasterization", so_path)
+    _C = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_C)
 
 def cpu_deep_copy_tuple(input_tuple):
     copied_tensors = [item.cpu().clone() if isinstance(item, torch.Tensor) else item for item in input_tuple]
