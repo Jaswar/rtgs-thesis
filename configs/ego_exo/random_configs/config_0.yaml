@@ -11,7 +11,7 @@ exhaust_test: True
 ModelParams:
   sh_degree: 3
   source_path: ego_exo_data/all_saves/camera-rgb/georgiatech_bike_01_4
-  model_path: output/ego_exo/random_search/camera-rgb/georgiatech_bike_01_4/model_0
+  model_path: output/ego_exo/random_search/camera-rgb/georgiatech_covid_03_4/model_0
   images: "images"
   resolution: 1
   white_background: False
@@ -27,13 +27,13 @@ PipelineParams:
   convert_SHs_python: False
   compute_cov3D_python: False
   debug: False
-  env_map_res: 500
-  env_optimize_until: 5000
+  env_map_res: 0
+  env_optimize_until: 1000000000
   env_optimize_from: 0
   eval_shfs_4d: True
 
 OptimizationParams:
-  iterations: 20000
+  iterations: 30000
   position_lr_init: 0.00016
   position_t_lr_init: -1.0
   position_lr_final: 0.0000016
@@ -49,7 +49,7 @@ OptimizationParams:
   densification_interval: 100
   opacity_reset_interval: 30000000  # no reset
   densify_from_iter: 500
-  densify_until_iter: 10000
+  densify_until_iter: 15000
   densify_grad_threshold: 0.0002
   densify_grad_t_threshold: 0.0002 / 40 # 想办法用上
   densify_until_num_points: -1

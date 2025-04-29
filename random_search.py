@@ -116,7 +116,6 @@ def main(data_path, model_path, timeout=5 * 60 * 60):
         write_config(config, config_path, data_path, model_path_)
         run_experiment(config_path)
         config_index += 1
-        return
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
