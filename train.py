@@ -334,6 +334,8 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                 ssim_test /= len(config['cameras'])     
                 msssim_test /= len(config['cameras'])        
                 print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
+                with open(os.path.join(scene.model_path, f"psnr_{config['name']}.txt"), 'a') as f:
+                    f.write(f"{iteration} {psnr_test}\n")
                 if tb_writer:
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - l1_loss', l1_test, iteration)
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - psnr', psnr_test, iteration)
