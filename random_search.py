@@ -62,18 +62,19 @@ OptimizationParams:
   final_prune_from_iter: -1
   sh_increase_interval: 1000
   lambda_opa_mask: 0.0
-  lambda_rigid: <lambda_rigid>
+  lambda_rigid: 0.0
   lambda_motion: 0.0
 '''
 
+# in practice lambda_rigid can also be set to 1.0
+# but that causes extreme slow down (unable to train even once in 4 hours)
 SAMPLING_SETTINGS = {
     'env_map_res': [0, 500],
     'env_optimize_until': [1000000000, 5000],
     'iterations': [20000, 30000],
     'position_lr_max_steps': [15000, 30000],
     'densification_interval': [200, 100],
-    'densify_until_iter': [10000, 15000],
-    'lambda_rigid': [0.0, 1.0]
+    'densify_until_iter': [10000, 15000]
 }
 
 
