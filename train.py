@@ -395,7 +395,7 @@ if __name__ == "__main__":
     if args.exhaust_test:
         args.test_iterations = args.test_iterations + [i for i in range(0,op.iterations,500)]
     
-    setup_seed(args.seed)
+    # setup_seed(args.seed)
     
     print("Optimizing " + args.model_path)
 
